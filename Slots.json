@@ -1,0 +1,116 @@
+pragma solidity ^0.8.0;
+
+contract SlotMachine {
+
+    // Constants
+
+    uint256 constant JACKPOT_ODDS = 1000000;
+
+    uint256 constant JACKPOT_AMOUNT = 1000; // Assuming the jackpot prize is 1000 HBAR
+
+    uint256 constant SMALL_PRIZE_ODDS = 100;
+
+    uint256 constant SMALL_PRIZE_AMOUNT = 10; // Assuming smaller prizes are 10 HBAR
+
+    // Data structures
+
+    struct Player {
+
+        uint256 balance;
+
+        uint256 lastPlayedTimestamp;
+
+    }
+
+    // Variables
+
+    mapping(address => Player) public players;
+
+    uint256 public jackpotBalance;
+
+    // Events
+
+    event SpinResult(address indexed player, uint256 indexed winnings);
+
+    // Modifiers
+
+    modifier minimumTimeBetweenSpins() {
+
+        require(
+
+            players[msg.sender].lastPlayedTimestamp + 1 minutes <= block.timestamp,
+
+            "Minimum time between spins not reached."
+
+        );
+
+        _;
+
+    }
+
+    // Functions
+
+    function deposit() external payable {
+
+        players[msg.sender].balance += msg.value;
+
+    }
+
+    function spin() external minimumTimeBetweenSpins {
+
+        Player storage player = players[msg.sender];
+
+        require(player.balance >= 1, "Insufficient balance to play.");
+
+        player.balance -= 1;
+
+        player.lastPlayedTimestamp = block.timestamp;
+
+        uint256 randomNumber = uint256(keccak256(abi.encodePacked(block.timestamp, msg.sender))) % JACKPOT_ODDS;
+
+        if (randomNumber == 0) {
+
+            // Jackpot win
+
+            uint256 jackpotWinnings = JACKPOT_AMOUNT;
+
+            jackpotBalance -= jackpotWinnings;
+
+            player.balance += jackpotWinnings;
+
+            emit SpinResult(msg.sender, jackpotWinnings);
+
+        } else if (randomNumber <= SMALL_PRIZE_ODDS) {
+
+            // Small prize win
+
+            uint256 smallPrizeWinnings = SMALL_PRIZE_AMOUNT;
+
+            player.balance += smallPrizeWinnings;
+
+            emit SpinResult(msg.sender, smallPrizeWinnings);
+
+        } else {
+
+            // No win
+
+            emit SpinResult(msg.sender, 0);
+
+        }
+
+    }
+
+    function withdraw(uint256 amount) external {
+
+        Player storage player = players[msg.sender];
+
+        require(amount <= player.balance, "Insufficient balance.");
+
+        player.balance -= amount;
+
+        payable(msg.sender).transfer(amount);
+
+    }
+
+}
+
